@@ -1,0 +1,81 @@
+diff --git a/docs/living/erd.md b/docs/living/erd.md
+index 8407349..2b0a6ff 100644
+--- a/docs/living/erd.md
++++ b/docs/living/erd.md
+@@ -1,39 +1,50 @@
+-# ERD (Entity Relationship Diagram) — Current Sprint: Sprint 4
++# Entity Relationship Diagram — Current Sprint: Sprint 4
+ 
+-> **Living document.** Updated when data model changes. See `docs/checkpoints/` for snapshots.  
+-> **Last updated:** S4_1
++> **Living document.** Updated when the data model changes. See `docs/checkpoints/` for snapshots.  
++> **Last updated:** S4_2
++
++> **S4_2:** `DatabaseTaskRepository` is implemented using SQLAlchemy. The ERD below
++> now reflects a real database table defined by `SQLAlchemyTask` in
++> `app/models/sqlalchemy_task.py`. Before S4_2 this diagram described the shape of
++> the `tasks.json` file; the entity is the same, the storage is now a SQLite table.
+ 
+ ---
+ 
+-> **S4_1:** ERD unchanged from Sprint 3 — file storage (`tasks.json`) remains the
+-> persistence backend in S4_1. `ITaskRepository` is designed so the data model
+-> maps directly to the database schema introduced in S4_2 with no changes required.
+->
+-> **S4_2:** `DatabaseTaskRepository` implemented using SQLAlchemy. The `TASK`
+-> entity below maps directly to the `tasks` table. ERD will be updated in the
+-> S4_2 Update Agile Docs assignment to reflect the live database schema.
++## Diagram
+ 
+ ```mermaid
+ erDiagram
+-    TASK {
+-        int id PK
+-        string title
+-        string description
+-        boolean completed
++    TASKS {
++        INTEGER id PK "autoincrement"
++        VARCHAR title "NOT NULL"
++        VARCHAR description "nullable"
++        BOOLEAN completed "NOT NULL, default false"
+     }
+ ```
+ 
+-## Field Definitions
++---
++
++## tasks table (SQLite via SQLAlchemy)
+ 
+-| Field | Type | Required | Notes |
+-|-------|------|----------|-------|
+-| `id` | int | Yes | Auto-assigned, unique |
+-| `title` | string | Yes | Cannot be empty |
+-| `description` | string | No | Optional |
+-| `completed` | boolean | Yes | Defaults to `false` |
++| Column | Type | Constraints | Notes |
++|--------|------|------------|-------|
++| id | INTEGER | PRIMARY KEY, AUTOINCREMENT | Auto-assigned |
++| title | VARCHAR | NOT NULL | Required — validated in UI and service |
++| description | VARCHAR | nullable | Optional |
++| completed | BOOLEAN | NOT NULL, DEFAULT FALSE | Set by `complete_task()` |
++
++### Notes
++- Single table — no foreign keys in Sprint 4
++- Database file: `tasks.db` (production), `:memory:` (tests)
++- ORM: SQLAlchemy — table created via `Base.metadata.create_all(engine)`
++- Model class: `SQLAlchemyTask` (`Mapped` / `mapped_column`); `to_dict()` returns the same shape as `Task.to_dict()` so `TaskService` and the routes are unchanged
++
++---
+ 
+-## Sprint 4 Preview
++## Storage History
+ 
+-When database integration is introduced in Sprint 4, this ERD will map directly
+-to a database table. The `Task` class attributes will become SQLAlchemy model
+-columns with minimal changes.
++| Sprint | Storage | Defined by |
++|--------|---------|------------|
++| S1–S3 | `tasks.json` (list of task dicts) | `Task` dataclass — `app/models/task.py` |
++| S4_1 | `tasks.json` via `FileTaskRepository` | `Task` dataclass behind `ITaskRepository` |
++| S4_2 | SQLite `tasks.db` via `DatabaseTaskRepository` | `SQLAlchemyTask` — `app/models/sqlalchemy_task.py` |

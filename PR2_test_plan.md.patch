@@ -1,0 +1,42 @@
+diff --git a/docs/living/test_plan.md b/docs/living/test_plan.md
+index a5f56fc..7895a74 100644
+--- a/docs/living/test_plan.md
++++ b/docs/living/test_plan.md
+@@ -1,7 +1,7 @@
+ # Test Plan — Current Sprint: Sprint 4
+ 
+ > **Living document.** Updated each sprint. See `docs/checkpoints/` for snapshots.  
+-> **Last updated:** S4_1
++> **Last updated:** S4_2
+ 
+ ---
+ 
+@@ -42,6 +42,9 @@ This document outlines the testing strategy for the TaskTracker project, current
+ | OBJ-27 | Verify CLI retirement does not break existing tests | Full test suite passes after `cli/` removed |
+ | OBJ-28 | Regression — all Sprint 3 tests pass after refactor | All existing tests pass unchanged |
+ | OBJ-28a | Verify CI pipeline runs the same checks once per PR | One run per PR, none on merge; lint → type-check → test steps all run; image/docs-only PRs skip CI |
++| OBJ-29 | Verify `DatabaseTaskRepository` satisfies `ITaskRepository` | All contract tests pass with DB backend |
++| OBJ-30 | Verify the home route redirects to the add-task form | Flask test client — `test_app_factory.py` (TC-US000-003) |
++| OBJ-31 | Verify manual UI workflow end-to-end | Browser verification — US033 |
+ 
+ ## Test Scope
+ 
+@@ -73,6 +76,10 @@ This document outlines the testing strategy for the TaskTracker project, current
+ * CLI retirement verification — RF013
+ * CI pipeline tune-up verification — [SQA] (RISK-CI-01)
+ * Regression: all Sprint 3 tests pass unchanged
++* `DatabaseTaskRepository` contract tests — RF011
++* Home-route redirect test — `test_app_factory.py`; manual browser verification of the UI — US012, US036
++* Database test isolation via `sqlite:///:memory:` — fresh DB per test
++* Manual browser workflow — US033
+ 
+ ### Out of Scope
+ * Persistent storage (Sprint 2+)
+@@ -109,6 +116,7 @@ This document outlines the testing strategy for the TaskTracker project, current
+ | mypy | `uv run mypy app/` | `disallow_untyped_defs = true`; `exclude = ["tests/", "setup_browsers.py"]` in `[tool.mypy]`; production code only |
+ | pytest-mock | `mocker.MagicMock()` | Replaces hand-rolled `MockTaskService` from Sprint 3 |
+ | GitHub Actions | `python-app.yml` | One job on each PR: ruff → mypy → pytest. Tuned in S4_1 — no run on merge; image/docs-only PRs skip CI |
++| SQLAlchemy | ORM for database layer | `DatabaseTaskRepository` — S4_2 |
+ 
+ ## Pass/Fail Criteria
+ 

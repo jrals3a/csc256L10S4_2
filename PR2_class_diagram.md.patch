@@ -1,0 +1,40 @@
+diff --git a/docs/living/class_diagram.md b/docs/living/class_diagram.md
+index b85d0eb..03c5f24 100644
+--- a/docs/living/class_diagram.md
++++ b/docs/living/class_diagram.md
+@@ -1,7 +1,7 @@
+ # Class Diagram — Current Sprint: Sprint 4
+ 
+ > **Living document.** Updated when architecture changes. See `docs/checkpoints/` for snapshots.  
+-> **Last updated:** S4_1
++> **Last updated:** S4_2
+ 
+ ---
+ 
+@@ -93,3 +93,26 @@ classDiagram
+ - `TaskService` now depends on `ITaskRepository` — not `TaskStorage` directly
+ - `MockTaskService` (hand-rolled) is **removed** — `mocker.MagicMock()` replaces it
+ - `DatabaseTaskRepository` shown here but implemented in S4_2
++
++---
++
++## S4_2 Additions
++
++### New Classes
++
++```
++SQLAlchemyTask (app/models/sqlalchemy_task.py)
++  - id: int (primary key, autoincrement)
++  - title: str (NOT NULL)
++  - description: str (nullable)
++  - completed: bool (NOT NULL, default False)
++
++UIBlueprint (app/routes/ui.py)
++  uses: TaskService (via current_app.task_service)
++  routes: /, /tasks/new, /tasks, /tasks/<id>/complete, /tasks/<id>/delete
++```
++
++### Updated create_app()
++- `use_db=True` → wires `DatabaseTaskRepository`
++- `use_db=False` (default) → wires `FileTaskRepository`
++- `service=mock` → test double injection

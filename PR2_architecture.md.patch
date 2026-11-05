@@ -1,0 +1,55 @@
+diff --git a/docs/living/architecture.md b/docs/living/architecture.md
+index d84ff33..476dd3e 100644
+--- a/docs/living/architecture.md
++++ b/docs/living/architecture.md
+@@ -1,7 +1,7 @@
+ # Architecture — Current Sprint: Sprint 4
+ 
+ > **Living document.** Updated each sprint. See `docs/checkpoints/` for snapshots.  
+-> **Last updated:** S4_1
++> **Last updated:** S4_2
+ 
+ ---
+ 
+@@ -77,3 +77,41 @@ tests/
+ └── tasks/
+     └── test_routes_with_mock.py   # Rewritten: mocker.MagicMock() (RF012)
+ ```
++
++---
++
++## S4_2 — Database Layer + Web UI
++
++### Full Stack (End of S4_2)
++
++```
++Browser
++  ↓ HTTP request
++app/routes/ui.py (UI Blueprint)
++  ↓ calls
++app/services/task_service.py (TaskService)
++  ↓ calls
++app/repositories/database_task_repository.py (DatabaseTaskRepository)
++  ↓ SQLAlchemy ORM
++SQLite (tasks.db / :memory: for tests)
++```
++
++### New Files Added in S4_2
++
++```
++app/models/sqlalchemy_task.py       ← SQLAlchemy Task model
++app/routes/ui.py                    ← UI Blueprint (new)
++app/templates/base.html             ← Base template
++app/templates/add_task.html         ← Add task form
++app/templates/task_list.html        ← Task list view
++app/static/styles/style.css         ← CSS styles
++tests/conftest.py                   ← db_client fixture added
++```
++
++### create_app() Repository Selection
++
++```python
++create_app()              → FileTaskRepository()      → tasks.json
++create_app(use_db=True)   → DatabaseTaskRepository()  → tasks.db
++create_app(service=mock)  → mocker.MagicMock()        → no I/O
++```

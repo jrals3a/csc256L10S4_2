@@ -1,0 +1,102 @@
+diff --git a/docs/living/test_cases.md b/docs/living/test_cases.md
+index f45012a..2b5e808 100644
+--- a/docs/living/test_cases.md
++++ b/docs/living/test_cases.md
+@@ -1,7 +1,7 @@
+ # Test Cases — Current Sprint: Sprint 4
+ 
+ > **Living document.** Updated each sprint. See `docs/checkpoints/` for snapshots.  
+-> **Last updated:** S4_1
++> **Last updated:** S4_2
+ 
+ ---
+ 
+@@ -30,7 +30,7 @@ Test cases for US000–US004. Each case maps to acceptance criteria in `tt_user_
+ | **Type** | Automated |
+ | **Expected** | `isinstance(app, Flask)` is True |
+ 
+-### TC-US000-003: Flask Returns 404 Without Routes
++### TC-US000-003: Flask Returns 404 Without Routes *(superseded in S4_2 — see TC-US000-003 under "US012 / US036 / US033 — Web UI")*
+ 
+ | Field | Detail |
+ |-------|--------|
+@@ -588,3 +588,79 @@ Test cases for US000–US004. Each case maps to acceptance criteria in `tt_user_
+ | **Type** | Manual (CI verification) |
+ | **Steps** | Open a PR that changes only files in `docs/` or `images/` (e.g. this assignment's docs PR) |
+ | **Expected** | No Python application check runs on the PR |
++
++---
++
++## RF011 — DatabaseTaskRepository
++
++### TC-RF011-002: DatabaseTaskRepository Satisfies ITaskRepository
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF011-002 |
++| **Type** | Automated (Contract) |
++| **Steps** | `isinstance(DatabaseTaskRepository(...), ITaskRepository)` |
++| **Expected** | `True` |
++
++### TC-RF011-005: add_task() Persists to SQLite
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF011-005 |
++| **Type** | Automated (Contract) |
++| **Steps** | `repo.add_task("Task A", "First")` → `repo.get_all_tasks()` |
++| **Expected** | Task retrievable via `get_all_tasks()` |
++
++### TC-RF011-010: clear_tasks() Removes All Tasks from DB
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF011-010 |
++| **Type** | Automated (Contract) |
++| **Steps** | Add tasks → `repo.clear_tasks()` → `repo.get_all_tasks()` |
++| **Expected** | Returns `[]` |
++
++> The lab's `test_database_task_repository.py` has ten RF011 contract tests (TC-RF011-001 through 010) — the same contract as RF010, run against the database backend. The three above are representative; the IDs match the test docstrings.
++
++---
++
++## US012 / US036 / US033 — Web UI
++
++### TC-US000-003: GET / Redirects to /tasks/new
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US000-003 |
++| **Type** | Automated (Integration) |
++| **Steps** | `GET /` via Flask test client (`tests/test_app_factory.py`) |
++| **Expected** | 302 redirect to `/tasks/new` |
++
++> This is the one automated UI test in S4_2 — the existing `test_app_factory.py` test updated from "404, no home route" to "302 redirect". The remaining UI behavior is verified manually in the browser (US033, lab Phase 4) and automated with Playwright in S4_3.
++
++### TC-US012-001: Add Task Form Renders
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US012-001 |
++| **Type** | Manual (Browser — US033) |
++| **Steps** | Open `http://127.0.0.1:5000` → redirected to `/tasks/new` |
++| **Expected** | Add Task form displays with Title and Description fields |
++
++### TC-US012-002: Valid Submission Creates Task and Redirects
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US012-002 |
++| **Type** | Manual (Browser — US033) |
++| **Steps** | Enter title + description → click **Add Task** |
++| **Expected** | Redirected to `/tasks`; task appears in list |
++
++### TC-US036-001: Empty Title Shows Server-Side Error
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US036-001 |
++| **Type** | Manual (Browser — US033) |
++| **Steps** | Submit form with empty Title |
++| **Expected** | Form re-renders with "Title is required." error message |
++
++### TC-US012-003: Complete and Delete via Form Buttons
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US012-003 |
++| **Type** | Manual (Browser — US033) |
++| **Steps** | Click **Complete** on one task → click **Delete** on another |
++| **Expected** | Completed task shows strikethrough and loses its Complete button; deleted task disappears |

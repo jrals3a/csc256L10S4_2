@@ -1,0 +1,1318 @@
+diff --git a/docs/checkpoints/s4_1/api_reference.md b/docs/checkpoints/s4_1/api_reference.md
+new file mode 100644
+index 0000000..2571aa9
+--- /dev/null
++++ b/docs/checkpoints/s4_1/api_reference.md
+@@ -0,0 +1,181 @@
++# API Reference — Current Sprint: Sprint 4
++
++> **Living document.** Updated each sprint when endpoints change.  
++> **Last updated:** S4_1  
++> **Environment:** Local (`http://127.0.0.1:5000`)  
++> **Authentication:** Not required
++
++> **Sprint 4_1 Note:** No new API endpoints in S4_1. All changes are internal
++> (repository pattern, pytest-mock, CLI retirement). New endpoints added in S4_2
++> when Web UI routes are introduced.
++```
++
++> **Sprint 3 Note:** No new endpoints added in Sprint 3. All endpoint behaviors
++> preserved from Sprint 2. Internal implementation now routes through
++> `TaskService` via `current_app.task_service` (dependency injection).
++
++---
++
++## GET /api/health
++
++| Field | Value |
++|-------|-------|
++| **Description** | Health check — verifies API is running |
++| **Method** | GET |
++| **URL** | `/api/health` |
++| **Request Body** | None |
++| **Response** | `{"status": "ok"}` |
++| **Status Code** | 200 OK |
++
++**Example:**
++```bash
++curl http://127.0.0.1:5000/api/health
++```
++
++**Related Test:** TC-US001-001
++
++---
++
++## POST /api/tasks
++
++| Field | Value |
++|-------|-------|
++| **Description** | Create a new task |
++| **Method** | POST |
++| **URL** | `/api/tasks` |
++| **Request Body** | `{"title": "Buy groceries", "description": "Milk and eggs"}` |
++| **Response** | `{"id": 1, "title": "Buy groceries", "description": "Milk and eggs"}` |
++| **Status Code** | 201 Created |
++| **Error Codes** | 400 Bad Request (missing/empty title or description) |
++
++**Request Example:**
++
++```bash
++curl -X POST http://127.0.0.1:5000/api/tasks \
++  -H "Content-Type: application/json" \
++  -d '{"title": "Buy Milk", "description": "2% and whole"}'
++```
++
++**Response Examples:**
++
++| Scenario | Status | Response |
++|----------|--------|---------|
++| Valid task added | 201 Created | `{"id": 1, "title": "Buy Milk", "description": "2% and whole"}` |
++| Missing title | 400 Bad Request | `{"error": "Title is required and cannot be empty"}` |
++| Empty title | 400 Bad Request | `{"error": "Title is required and cannot be empty"}` |
++
++**Related Tests:** TC-US002-001 through TC-US002-004
++
++---
++
++## GET /api/tasks
++
++| Field | Value |
++|-------|-------|
++| **Description** | Retrieve all tasks |
++| **Method** | GET |
++| **URL** | `/api/tasks` |
++| **Request Body** | None |
++| **Response** | Array of task objects |
++| **Status Code** | 200 OK |
++
++**Request Example:**
++
++```bash
++curl http://127.0.0.1:5000/api/tasks
++```
++
++**Response Examples:**
++
++| Scenario | Status | Response |
++|----------|--------|---------|
++| No tasks exist | 200 OK | `[]` |
++| Tasks exist | 200 OK | `[{"id": 1, "title": "Buy Milk", "description": "2% and whole"}]` |
++| Invalid method (PUT) | 405 Method Not Allowed | Error |
++
++**Related Tests:** TC-US003-001 through TC-US003-003
++
++---
++
++## PUT /api/tasks/<id>
++
++| Field | Value |
++|-------|-------|
++| **Description** | Mark task complete |
++| **Method** | PUT |
++| **URL** | `/api/tasks/<id>` |
++| **Request Body** | `{"completed": true}` |
++| **Response** | Updated task JSON |
++| **Status Code** | 200 OK / 404 Not Found |
++
++**Example:**
++```bash
++curl -X PUT http://127.0.0.1:5000/api/tasks/1 \
++  -H "Content-Type: application/json" \
++  -d '{"completed": true}'
++```
++
++**Related Tests:** TC-US005-001, TC-US005-002
++
++---
++
++## DELETE /api/tasks/<id>
++
++| Field | Value |
++|-------|-------|
++| **Description** | Delete a task |
++| **Method** | DELETE |
++| **URL** | `/api/tasks/<id>` |
++| **Response** | `{"message": "Task deleted"}` |
++| **Status Code** | 200 OK / 404 Not Found |
++
++**Example:**
++```bash
++curl -X DELETE http://127.0.0.1:5000/api/tasks/1
++```
++
++**Related Tests:** TC-US007-001 through TC-US007-003
++
++---
++
++## Error Handling (US015)
++
++**Two-level error handling:**
++
++**Global handlers** (`app/__init__.py`) return:
++```json
++{ "error": "Bad Request" }
++{ "error": "Not Found" }
++```
++
++**Route-level validation** (`routes/tasks.py`) returns specific messages:
++```json
++{ "error": "Title is required" }
++```
++
++| Code | Meaning | When |
++|------|---------|------|
++| 400 | Bad Request | Missing/empty title, malformed JSON |
++| 404 | Not Found | Task ID does not exist |
++| 405 | Method Not Allowed | Wrong HTTP method |
++
++> **Implementation note:** Sprint plan specified a unified `{"error": "...", "message": "..."}` format. Implemented as two levels: global handlers return type only; route logic returns specific validation messages.
++
++---
++
++## POST /api/tasks/reset
++
++| Field | Value |
++|-------|-------|
++| **Description** | Reset task list — used by test fixtures for isolation |
++| **Method** | POST |
++| **URL** | `/api/tasks/reset` |
++| **Request Body** | None |
++| **Response** | `{"message": "Tasks reset"}` |
++| **Status Code** | 200 OK |
++
++> **Note:** As of S4_1 this route is the only reset mechanism — the `reset_tasks`
++> fixture in `conftest.py` no longer falls back to writing `tasks.json` directly.
++> The route calls `TaskService.clear_tasks()`, which delegates to whichever
++> `ITaskRepository` is injected, so it works unchanged when the database backend
++> arrives in S4_2.
+diff --git a/docs/checkpoints/s4_1/architecture.md b/docs/checkpoints/s4_1/architecture.md
+new file mode 100644
+index 0000000..d84ff33
+--- /dev/null
++++ b/docs/checkpoints/s4_1/architecture.md
+@@ -0,0 +1,79 @@
++# Architecture — Current Sprint: Sprint 4
++
++> **Living document.** Updated each sprint. See `docs/checkpoints/` for snapshots.  
++> **Last updated:** S4_1
++
++---
++
++## Sprint 3 → Sprint 4 Evolution
++
++Sprint 3 introduced `TaskService` as the business logic layer. Sprint 4 goes one level deeper — introducing the **repository pattern** that separates `TaskService` from any specific persistence backend.
++
++### Sprint 3 State
++```
++HTTP Request → Route → TaskService → TaskStorage → tasks.json
++```
++
++## Sprint 4 Layered Architecture
++
++```
++HTTP Request
++    ↓
++Blueprint Route (routes/tasks.py)        ← HTTP only — unchanged
++    ↓
++TaskService (services/task_service.py)   ← business logic — unchanged interface
++    ↓
++ITaskRepository (repositories/base.py)   ← interface contract — NEW
++    ↓
++FileTaskRepository  OR  DatabaseTaskRepository
++    ↓
++tasks.json          OR  tasks.db (SQLite)
++```
++
++## Key Changes from Sprint 3 to Sprint 4
++
++| Aspect | Sprint 3 | Sprint 4 |
++|--------|----------|----------|
++| **Persistence dependency** | `TaskService(TaskStorage)` | `TaskService(ITaskRepository)` |
++| **Interface contract** | None — duck typing | `ITaskRepository` ABC |
++| **Backends available** | File only | File (S4_1) + Database (S4_2) |
++| **Mock in tests** | Hand-rolled `MockTaskService` | `mocker.MagicMock()` via pytest-mock |
++| **CLI** | Present | **Removed** — tightly coupled, untestable |
++| **UI** | None | Flask templates + Jinja2 (S4_2) |
++| **CI pipeline** | 3 jobs, runs on PR **and** on merge | 1 job, runs on PR only |
++
++## CLI Retirement — SQA Decision
++
++The CLI called `load_tasks()` and `save_tasks()` directly — bypassing `TaskService` entirely. It could not be tested through any designed interface.
++
++**Lesson:** Code that cannot participate in the architecture's testing seams is a maintenance liability. The CLI's functionality is fully covered by the API — retirement is the correct SQA decision.
++
++## CI Pipeline
++
++`.github/workflows/python-app.yml` — tuned in S4_1 to run once per PR (SQA CI Pipeline Tune-Up, mitigates RISK-CI-01)
++
++| Aspect | Setting |
++|--------|---------|
++| **Trigger** | `pull_request` to `main` only — no run on merge |
++| **Skipped when** | Only `**.md`, `docs/**` or `images/**` files change |
++| **Jobs** | One job — *Lint, type-check, test* |
++| **Steps (in order)** | ruff → mypy → start Flask → pytest with coverage → stop Flask; a failed step skips the rest, except the stop step (`if: always()`) |
++| **Teardown** | `Stop Flask server` step from S3_2 retained — runs even on failure |
++| **Safety cap** | `timeout-minutes: 10` |
++| **Cost** | ~1–2 billed minutes per PR (was ~6) |
++
++## Test Architecture
++
++```
++tests/
++├── conftest.py                    # client fixture + reset_tasks (API-based S4+)
++│                                  # MockTaskService REMOVED — mocker used instead
++├── api/
++│   └── test_tasks_api.py          # E2E via requests — unchanged
++├── repositories/
++│   └── test_file_task_repository.py  # RF010 contract tests
++├── storage/
++│   └── test_task_storage.py       # Raw I/O tests — unchanged
++└── tasks/
++    └── test_routes_with_mock.py   # Rewritten: mocker.MagicMock() (RF012)
++```
+diff --git a/docs/checkpoints/s4_1/class_diagram.md b/docs/checkpoints/s4_1/class_diagram.md
+new file mode 100644
+index 0000000..b85d0eb
+--- /dev/null
++++ b/docs/checkpoints/s4_1/class_diagram.md
+@@ -0,0 +1,95 @@
++# Class Diagram — Current Sprint: Sprint 4
++
++> **Living document.** Updated when architecture changes. See `docs/checkpoints/` for snapshots.  
++> **Last updated:** S4_1
++
++---
++
++```mermaid
++classDiagram
++    class Task {
++        +int id
++        +str title
++        +str description
++        +bool completed
++        +mark_complete() None
++        +to_dict() dict
++    }
++
++    class ITaskRepository {
++        <<abstract>>
++        +add_task(title, description)*
++        +get_all_tasks()*
++        +complete_task(task_id)*
++        +delete_task(task_id)*
++        +clear_tasks()*
++    }
++
++    class FileTaskRepository {
++        +add_task(title, description) dict
++        +get_all_tasks() list
++        +complete_task(task_id) dict | None
++        +delete_task(task_id) dict | None
++        +clear_tasks() None
++    }
++
++    class DatabaseTaskRepository {
++        +add_task(title, description) dict
++        +get_all_tasks() list
++        +complete_task(task_id) dict | None
++        +delete_task(task_id) dict | None
++        +clear_tasks() None
++    }
++
++    class TaskStorage {
++        +load_tasks() list
++        +save_tasks(tasks) None
++    }
++
++    class TaskService {
++        +__init__(repository: ITaskRepository)
++        +add_task(title, description) dict
++        +get_all_tasks() list
++        +complete_task(task_id) dict | None
++        +delete_task(task_id) dict | None
++        +clear_tasks() None
++    }
++
++    class FlaskApp {
++        +create_app(service, use_db) Flask
++        +task_service: TaskService
++    }
++
++    class TaskRoutes {
++        +POST /api/tasks
++        +GET /api/tasks
++        +PUT /api/tasks/id
++        +DELETE /api/tasks/id
++        +POST /api/tasks/reset
++    }
++
++    ITaskRepository <|-- FileTaskRepository : implements
++    ITaskRepository <|-- DatabaseTaskRepository : implements
++    FileTaskRepository --> TaskStorage : wraps
++    TaskService --> ITaskRepository : depends on interface
++    TaskService --> Task : creates/manages
++    FlaskApp --> TaskService : injects via create_app()
++    FlaskApp --> TaskRoutes : registers blueprint
++    TaskRoutes --> TaskService : current_app.task_service
++```
++
++## Key Relationships
++
++| Relationship | From | To | Type |
++|---|---|---|---|
++| Interface | `ITaskRepository` | `FileTaskRepository` | Inheritance (implements ABC) |
++| Interface | `ITaskRepository` | `DatabaseTaskRepository` | Inheritance (implements ABC) |
++| Dependency | `TaskService` | `ITaskRepository` | Depends on interface — not concrete class |
++| Wraps | `FileTaskRepository` | `TaskStorage` | Delegation |
++| Injection | `FlaskApp` | `TaskService` | Dependency Injection |
++
++## Notes
++
++- `TaskService` now depends on `ITaskRepository` — not `TaskStorage` directly
++- `MockTaskService` (hand-rolled) is **removed** — `mocker.MagicMock()` replaces it
++- `DatabaseTaskRepository` shown here but implemented in S4_2
+diff --git a/docs/checkpoints/s4_1/erd.md b/docs/checkpoints/s4_1/erd.md
+new file mode 100644
+index 0000000..8407349
+--- /dev/null
++++ b/docs/checkpoints/s4_1/erd.md
+@@ -0,0 +1,39 @@
++# ERD (Entity Relationship Diagram) — Current Sprint: Sprint 4
++
++> **Living document.** Updated when data model changes. See `docs/checkpoints/` for snapshots.  
++> **Last updated:** S4_1
++
++---
++
++> **S4_1:** ERD unchanged from Sprint 3 — file storage (`tasks.json`) remains the
++> persistence backend in S4_1. `ITaskRepository` is designed so the data model
++> maps directly to the database schema introduced in S4_2 with no changes required.
++>
++> **S4_2:** `DatabaseTaskRepository` implemented using SQLAlchemy. The `TASK`
++> entity below maps directly to the `tasks` table. ERD will be updated in the
++> S4_2 Update Agile Docs assignment to reflect the live database schema.
++
++```mermaid
++erDiagram
++    TASK {
++        int id PK
++        string title
++        string description
++        boolean completed
++    }
++```
++
++## Field Definitions
++
++| Field | Type | Required | Notes |
++|-------|------|----------|-------|
++| `id` | int | Yes | Auto-assigned, unique |
++| `title` | string | Yes | Cannot be empty |
++| `description` | string | No | Optional |
++| `completed` | boolean | Yes | Defaults to `false` |
++
++## Sprint 4 Preview
++
++When database integration is introduced in Sprint 4, this ERD will map directly
++to a database table. The `Task` class attributes will become SQLAlchemy model
++columns with minimal changes.
+diff --git a/docs/checkpoints/s4_1/sprint_plan.md b/docs/checkpoints/s4_1/sprint_plan.md
+new file mode 100644
+index 0000000..3922e9a
+--- /dev/null
++++ b/docs/checkpoints/s4_1/sprint_plan.md
+@@ -0,0 +1,94 @@
++# Sprint Plan — Current Sprint: Sprint 4
++
++> **Living document.** Updated each sprint. See `docs/checkpoints/` for snapshots.  
++> **Last updated:** S4_1
++
++---
++
++# Sprint 4 Planning
++
++Sprint 4 introduces the **repository pattern** — a professional software design technique that decouples `TaskService` from any specific persistence backend. By defining a formal `ITaskRepository` interface, the application can swap between file storage, a database, or a test double without changing any business logic or route code. Sprint 4 also introduces `pytest-mock` as the professional standard for mock-based testing, retires the CLI, and introduces the web UI.
++
++## 1. Sprint Goals
++
++### S4_1 — Repository Pattern and pytest-mock
++- 🔁 **RF009** — Define `ITaskRepository` ABC: formal interface contract
++- 🔁 **RF010** — Implement `FileTaskRepository`: wraps `TaskStorage`, implements `ITaskRepository`
++- 🔁 **RF012** — Replace hand-rolled `MockTaskService` with `pytest-mock` (`mocker` fixture)
++- 🔁 **RF013** — Retire CLI: tightly coupled to file storage, cannot participate in repository pattern
++- 🛠️ **[SQA] CI Pipeline Tune-Up** — run CI once per PR in one job; skip image-only changes (mitigates RISK-CI-01)
++
++### S4_2 — Database Repository and Web UI
++- 🔁 **RF011** — Implement `DatabaseTaskRepository`: SQLAlchemy-backed
++- ✅ **US012** — Add Task via Web Form: Flask templates, Jinja2
++- ✅ **US036** — Form Validation and Feedback
++- ✅ **US033** — User Journey: Manual Task Workflow via Web UI
++
++## 2. User Stories in Scope
++
++* **US012** — Add Task via Web Form (S4_2)
++* **US033** — Manual Task Workflow via Web UI (S4_2)
++* **US036** — Form Validation and Feedback (S4_2)
++
++## 3. Test Planning Overview
++
++- **TDD:** Write repository contract tests BEFORE implementing `FileTaskRepository`
++- **Contract testing:** Same test suite runs against `FileTaskRepository` (S4_1) and `DatabaseTaskRepository` (S4_2)
++- **Coverage:** ≥ 80%
++- **Tools:** `pytest`, `pytest-cov`, `pytest-mock`, `requests`, `mypy`, `ruff`, `bandit`
++
++## 4. Tools and Technologies
++
++| Tool | Purpose | Notes |
++|------|---------|-------|
++| `pytest` | Test runner | `uv run python -m pytest -v` |
++| `pytest-cov` | Coverage | ≥ 80% |
++| `pytest-mock` | Route mock testing | `mocker.MagicMock()` — replaces hand-rolled `MockTaskService` |
++| `requests` | E2E API tests | Unchanged from Sprint 3 |
++| `mypy` | Type checking | Already enforced — `disallow_untyped_defs = true` |
++| `SQLAlchemy` | ORM for DB repository | S4_2 only |
++| `GitHub Actions` | CI — 1 job, PR-only | lint → type-check → test as steps; tuned in S4_1 to cut Actions minutes (RISK-CI-01) |
++
++## 5. Technical Design
++
++### Repository Pattern Architecture
++
++```
++HTTP Request
++    ↓
++Blueprint Route (routes/tasks.py)        ← unchanged
++    ↓
++TaskService (services/task_service.py)   ← accepts ITaskRepository
++    ↓
++ITaskRepository (repositories/base.py)   ← interface contract
++    ↓
++FileTaskRepository  OR  DatabaseTaskRepository
++```
++
++### Swappable Backends
++
++```python
++create_app()              → FileTaskRepository()      → tasks.json
++create_app(use_db=True)   → DatabaseTaskRepository()  → tasks.db
++mocker.MagicMock()        → no I/O at all (tests)
++```
++
++## 6. Sprint-Level Completion Criteria
++
++- [ ] `ITaskRepository` ABC importable; concrete classes satisfy all abstract methods
++- [ ] `FileTaskRepository` passes all repository contract tests
++- [ ] Route tests pass using `mocker.MagicMock()` — `MockTaskService` fully removed
++- [ ] All Sprint 3 tests pass without modification
++- [ ] CLI removed; no broken imports
++- [ ] `uv run mypy app/` clean
++- [ ] Coverage ≥ 80%
++- [ ] GitHub Actions green on all merged PRs
++- [ ] CI runs once per PR (no run on merge), in one job; image-only and docs-only PRs skip CI
++
++## 7. Definition of Done
++
++- [ ] All acceptance criteria met
++- [ ] TDD approach — contract tests written before implementation
++- [ ] All tests pass locally and in CI
++- [ ] PR merged to main via GitHub Flow — every change reaches `main` through a PR (CI does not run on direct pushes)
++- [ ] No regressions from Sprint 3
+diff --git a/docs/checkpoints/s4_1/test_cases.md b/docs/checkpoints/s4_1/test_cases.md
+new file mode 100644
+index 0000000..f45012a
+--- /dev/null
++++ b/docs/checkpoints/s4_1/test_cases.md
+@@ -0,0 +1,590 @@
++# Test Cases — Current Sprint: Sprint 4
++
++> **Living document.** Updated each sprint. See `docs/checkpoints/` for snapshots.  
++> **Last updated:** S4_1
++
++---
++
++Test cases for US000–US004. Each case maps to acceptance criteria in `tt_user_stories.md`.
++
++---
++
++## US000 — Initial Setup & Validation
++
++### TC-US000-001: pytest Runs Successfully
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US000-001 |
++| **Description** | Verify pytest can discover and run tests |
++| **Type** | Automated |
++| **Steps** | Run `uv run pytest -v` |
++| **Expected** | Tests collected and passed |
++
++### TC-US000-002: create_app() Returns Flask Instance
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US000-002 |
++| **Description** | Verify app factory returns valid Flask app |
++| **Type** | Automated |
++| **Expected** | `isinstance(app, Flask)` is True |
++
++### TC-US000-003: Flask Returns 404 Without Routes
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US000-003 |
++| **Description** | Verify app returns 404 at root before routes registered |
++| **Type** | Automated |
++| **Expected** | `GET /` returns 404 |
++
++### TC-US000-004: Flask Application Runs Locally
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US000-004 |
++| **Description** | Verify Flask starts without errors |
++| **Type** | Manual |
++| **Steps** | Run `uv run python -m app` in terminal |
++| **Expected** | App starts; terminal shows running on `http://127.0.0.1:5000` |
++
++---
++
++## US001 — Health Check Endpoint
++
++### TC-US001-001: Health Check Returns 200 + JSON
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US001-001 |
++| **Description** | `GET /api/health` returns 200 and `{"status": "ok"}` |
++| **Type** | Automated |
++| **Expected** | status_code == 200; body == `{"status": "ok"}` |
++
++---
++
++## US002 — Add Task via API
++
++### TC-US002-001: Add Valid Task
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US002-001 |
++| **User Story** | US002: Add a task via POST /api/tasks |
++| **Description** | When a valid title and description are provided, the API accepts the task and returns it with an auto-assigned ID |
++| **Type** | Automated (Integration) |
++| **Steps** | Send POST request to `/api/tasks` with JSON: `{"title": "Buy Milk", "description": "2% and whole"}` |
++| **Expected Result** | 201 Created; response includes `{"id": 1, "title": "Buy Milk", "description": "2% and whole"}` |
++| **Acceptance Criteria** | Status code is 201; response JSON includes all three fields (id, title, description) |
++
++### TC-US002-002: Empty Title Returns 400
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US002-002 |
++| **Description** | When title is an empty string, the API rejects with 400 Bad Request |
++| **Type** | Automated (Integration) |
++| **Steps** | Send POST to `/api/tasks` with `{"title": "", "description": "Empty title"}` |
++| **Expected Result** | 400 Bad Request; error message mentions "title" |
++| **Acceptance Criteria** | Status code is 400; empty/whitespace-only titles are rejected |
++
++### TC-US002-003: Missing Title Returns 400
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US002-003 |
++| **Description** | When title field is completely missing, the API rejects with 400 |
++| **Type** | Automated (Integration) |
++| **Steps** | Send POST to `/api/tasks` with `{"description": "No title provided"}` |
++| **Expected Result** | 400 Bad Request; error message mentions "title" |
++| **Acceptance Criteria** | Status code is 400; missing title field is caught and rejected |
++
++### TC-US002-004: Empty Request Returns 400
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US002-004 |
++| **Description** | When request body is empty JSON `{}`, the API rejects with 400 |
++| **Type** | Automated (Integration) |
++| **Steps** | Send POST to `/api/tasks` with `{}` |
++| **Expected Result** | 400 Bad Request |
++| **Acceptance Criteria** | Status code is 400; completely empty requests are caught |
++
++---
++
++## US003 — View Tasks
++
++### TC-US003-001: View Tasks When None Exist
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US003-001 |
++| **User Story** | US003: View all tasks via GET /api/tasks |
++| **Description** | When no tasks exist, GET /api/tasks returns empty list |
++| **Type** | Automated (Integration) |
++| **Steps** | Send GET to `/api/tasks` when task list is empty |
++| **Expected Result** | 200 OK; response is `[]` |
++| **Acceptance Criteria** | Status code is 200; response is valid JSON array; length is 0 |
++
++### TC-US003-002: View Tasks When Tasks Exist
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US003-002 |
++| **Description** | When tasks exist, GET /api/tasks returns all tasks |
++| **Type** | Automated (Integration) |
++| **Steps** | Create 2 tasks via POST, then GET `/api/tasks` |
++| **Expected Result** | 200 OK; array length is 2; all fields present |
++| **Acceptance Criteria** | Status code is 200; array contains all added tasks with id, title, description |
++
++### TC-US003-003: Invalid HTTP Method Returns 405
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US003-003 |
++| **Description** | PUT /api/tasks returns 405 Method Not Allowed |
++| **Type** | Automated (Integration) |
++| **Steps** | Send PUT to `/api/tasks` with valid JSON body |
++| **Expected Result** | 405 Method Not Allowed |
++| **Acceptance Criteria** | Status code is 405; no task is created or modified |
++
++---
++
++## US004 — CLI Interface
++
++### TC-US004-001: CLI Add Task
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US004-001 |
++| **Description** | CLI prompts for task and stores it |
++| **Type** | Manual |
++| **Expected** | Task stored in memory; confirmation printed |
++
++### TC-US004-002: CLI View Tasks
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US004-002 |
++| **Description** | CLI displays all stored tasks |
++| **Type** | Manual |
++| **Expected** | Tasks listed with id, title, description |
++
++### TC-US004-003: CLI Menu Loop
++
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US004-003 |
++| **Description** | CLI menu allows add/view/quit |
++| **Type** | Manual |
++| **Expected** | Menu loops; Quit exits cleanly |
++
++---
++
++## US005 — Mark Task Complete
++
++### TC-US005-001: Mark Task Complete with Valid ID
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US005-001 |
++| **Type** | Automated |
++| **Steps** | Send `PUT /api/tasks/1` |
++| **Expected** | 200 OK; task with `completed: true` |
++
++### TC-US005-002: Mark Non-Existent Task
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US005-002 |
++| **Type** | Automated |
++| **Steps** | Send `PUT /api/tasks/999` |
++| **Expected** | 404 Not Found with error JSON |
++
++---
++
++## US007 — Delete Task
++
++### TC-US007-001: Delete Existing Task
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US007-001 |
++| **Type** | Automated |
++| **Steps** | Send `DELETE /api/tasks/1` |
++| **Expected** | 200 OK; `{"message": "Task deleted"}` |
++
++### TC-US007-002: Verify Task Removed from List
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US007-002 |
++| **Type** | Automated |
++| **Steps** | Send `GET /api/tasks` after deletion |
++| **Expected** | Deleted task not in response array |
++
++### TC-US007-003: Delete Non-Existent Task
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US007-003 |
++| **Type** | Automated |
++| **Steps** | Send `DELETE /api/tasks/999` |
++| **Expected** | 404 Not Found with error JSON |
++
++---
++
++## US011 — Persist Tasks
++
++### TC-US011-001: Save and Load Tasks
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US011-001 |
++| **Type** | Automated |
++| **Steps** | `save_tasks()` then `load_tasks()` |
++| **Expected** | Tasks match what was saved |
++
++### TC-US011-002: Empty Task List Returns []
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US011-002 |
++| **Type** | Automated |
++| **Steps** | `save_tasks([])` then `load_tasks()` |
++| **Expected** | Returns empty list |
++
++---
++
++## US015 — Error Handling
++
++### TC-US015-001: Missing Title Returns 400
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US015-001 |
++| **Type** | Automated |
++| **Steps** | `POST /api/tasks` with `{}` |
++| **Expected** | 400; `{"error": "Title is required"}` |
++
++### TC-US015-002: Non-Existent Task Returns 404
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-US015-002 |
++| **Type** | Automated |
++| **Steps** | `PUT /api/tasks/999` |
++| **Expected** | 404 Not Found; `{"error": "Not Found"}` |
++
++---
++
++## RF003 — Test Structure Refactor
++
++### TC-RF003-001: pytest Discovers All Tests in Subfolders
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF003-001 |
++| **Type** | Automated |
++| **Steps** | Run `uv run pytest -v` from project root |
++| **Expected** | All test files in tasks/, storage/, error/, health/ discovered and run |
++
++### TC-RF003-002: conftest.py Fixtures Available Without Import
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF003-002 |
++| **Type** | Automated |
++| **Steps** | Run any test file that uses client fixture without local fixture definition |
++| **Expected** | Tests pass without ImportError or fixture-not-found errors |
++
++### TC-RF003-003: reset_tasks Fixture Clears State Between Tests
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF003-003 |
++| **Type** | Automated |
++| **Steps** | Run full test suite — verify no test depends on state from a prior test |
++| **Expected** | All 21 tests pass; no order-dependent failures |
++
++---
++
++## RF004 — Task Class
++
++### TC-RF004-001: Task Instantiates with Correct Attributes
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF004-001 |
++| **Type** | Automated (Unit) |
++| **Steps** | `task = Task(id=1, title="Buy milk", description="2%")` |
++| **Expected** | `task.id == 1`, `task.title == "Buy milk"`, `task.completed == False` |
++
++### TC-RF004-002: mark_complete() Sets completed to True
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF004-002 |
++| **Type** | Automated (Unit) |
++| **Steps** | Create task, call `task.mark_complete()` |
++| **Expected** | `task.completed == True` |
++
++### TC-RF004-003: Task completed Defaults to False
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF004-003 |
++| **Type** | Automated (Unit) |
++| **Steps** | Create `Task(id=1, title="Test")` without completed argument |
++| **Expected** | `task.completed == False` |
++
++### TC-RF004-004: to_dict() Returns Correct Dictionary
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF004-004 |
++| **Type** | Automated (Unit) |
++| **Steps** | `task = Task(id=1, title="Buy milk", description="2%")` then `task.to_dict()` |
++| **Expected** | Returns `{"id": 1, "title": "Buy milk", "description": "2%", "completed": False}` |
++
++---
++
++## RF005 — TaskService
++
++### TC-RF005-001: add_task() Returns Task with Correct Fields
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF005-001 |
++| **Type** | Automated (Unit) |
++| **Steps** | `service.add_task("Buy milk", "2%")` |
++| **Expected** | Returns task with `title="Buy milk"`, `completed=False`, `id` assigned |
++
++### TC-RF005-002: get_tasks() Returns Empty List Initially
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF005-002 |
++| **Type** | Automated (Unit) |
++| **Steps** | `service.get_tasks()` on fresh service |
++| **Expected** | Returns `[]` |
++
++### TC-RF005-003: complete_task() Sets completed to True
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF005-003 |
++| **Type** | Automated (Unit) |
++| **Steps** | Add task, call `service.complete_task(task_id)` |
++| **Expected** | Task `completed == True` |
++
++### TC-RF005-004: delete_task() Removes Task
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF005-004 |
++| **Type** | Automated (Unit) |
++| **Steps** | Add task, call `service.delete_task(task_id)` |
++| **Expected** | Task no longer in `service.get_tasks()` |
++
++---
++
++## RF008 — Automated API Tests (requests)
++
++### TC-RF008-001: POST /api/tasks Returns 201
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF008-001 |
++| **Type** | Automated (E2E) |
++| **Steps** | `requests.post("http://127.0.0.1:5000/api/tasks", json={"title": "Test"})` |
++| **Expected** | 201 Created; task JSON in response |
++
++### TC-RF008-002: GET /api/tasks Returns 200
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF008-002 |
++| **Type** | Automated (E2E) |
++| **Expected** | 200 OK; array of tasks |
++
++### TC-RF008-003: PUT /api/tasks/<id> Returns 200
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF008-003 |
++| **Type** | Automated (E2E) |
++| **Expected** | 200 OK; task with `completed: true` |
++
++### TC-RF008-004: DELETE /api/tasks/<id> Returns 200
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF008-004 |
++| **Type** | Automated (E2E) |
++| **Expected** | 200 OK; `{"message": "Task deleted"}` |
++
++---
++
++## RF008 — MockTaskService Route Tests (Hand-Rolled)
++
++### TC-RF008-009: MockTaskService Injected via create_app(service=)
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF008-009 |
++| **Type** | Automated (Unit) |
++| **Steps** | Pass `MockTaskService()` to `create_app(service=mock)` in test fixture |
++| **Expected** | Routes use mock service — no file I/O; tests run in isolation |
++
++### TC-RF008-010: POST /api/tasks with MockTaskService Returns 201
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF008-010 |
++| **Type** | Automated (Unit) |
++| **Steps** | POST `/api/tasks` via Flask test client with `MockTaskService` injected |
++| **Expected** | 201 Created; task stored in mock memory — no tasks.json written |
++
++### TC-RF008-011: GET /api/tasks with MockTaskService Returns Empty List
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF008-011 |
++| **Type** | Automated (Unit) |
++| **Steps** | GET `/api/tasks` via Flask test client with fresh `MockTaskService` injected |
++| **Expected** | 200 OK; `[]` returned |
++
++---
++
++## SQA Tooling Review — mypy Type Checking
++
++### TC-MYPY-001: mypy Clean on app/ After Annotations
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-MYPY-001 |
++| **Type** | Automated (Static) |
++| **Steps** | `uv run mypy app/` after all S3_2 annotations applied |
++| **Expected** | `Success: no issues found in N source files` |
++
++### TC-MYPY-002: mypy CI Job Passes on main
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-MYPY-002 |
++| **Type** | Automated (CI) |
++| **Steps** | Push to main — observe `type-check` job in GitHub Actions |
++| **Expected** | `type-check` job passes; green checkmark in Actions tab |
++
++---
++
++## CI Pipeline — Teardown
++
++### TC-CI-001: Flask Server Stopped After CI Tests
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-CI-001 |
++| **Type** | Automated (CI) |
++| **Steps** | Open a PR — observe the `test` job in GitHub Actions |
++| **Expected** | `Stop Flask server` step passes; **Post Install uv** completes in seconds (not a 5-minute timeout); job green |
++
++---
++
++## RF009 — ITaskRepository Interface
++
++### TC-RF009-001: ITaskRepository Cannot Be Instantiated Directly
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF009-001 |
++| **Type** | Automated (Unit) |
++| **Steps** | Attempt `ITaskRepository()` |
++| **Expected** | `TypeError` raised — abstract class cannot be instantiated |
++
++### TC-RF009-002: FileTaskRepository Is Recognized as ITaskRepository
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF009-002 |
++| **Type** | Automated (Unit) |
++| **Steps** | `isinstance(FileTaskRepository(), ITaskRepository)` |
++| **Expected** | `True` |
++
++---
++
++## RF010 — FileTaskRepository
++
++### TC-RF010-001: add_task() Returns Dict with Correct Fields
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF010-001 |
++| **Type** | Automated (Contract) |
++| **Steps** | `repo.add_task("Buy milk", "2%")` |
++| **Expected** | Returns dict with `id`, `title`, `description`, `completed: False` |
++
++### TC-RF010-002: get_all_tasks() Returns Empty List Initially
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF010-002 |
++| **Type** | Automated (Contract) |
++| **Steps** | Fresh `FileTaskRepository()` → `repo.get_all_tasks()` |
++| **Expected** | Returns `[]` |
++
++### TC-RF010-004: complete_task() Sets completed to True
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF010-004 |
++| **Type** | Automated (Contract) |
++| **Steps** | Add task → `repo.complete_task(task_id)` |
++| **Expected** | Returns task dict with `completed: True` |
++
++### TC-RF010-008: clear_tasks() Removes All Tasks
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF010-008 |
++| **Type** | Automated (Contract) |
++| **Steps** | Add 3 tasks → `repo.clear_tasks()` → `repo.get_all_tasks()` |
++| **Expected** | Returns `[]` |
++
++> The lab's `test_file_task_repository.py` has eight RF010 contract tests (TC-RF010-001 through 008). The four above are representative; the IDs match the test docstrings.
++
++---
++
++## RF012 — pytest-mock Route Tests
++
++### TC-RF012-001: POST /api/tasks with mocker Returns 201
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF012-001 |
++| **Type** | Automated (Unit) |
++| **Steps** | `mocker.MagicMock()` injected → POST `/api/tasks` |
++| **Expected** | 201 Created; no file I/O |
++
++### TC-RF012-005: mocker Verifies Route Delegates to Service with Correct Args
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF012-005 |
++| **Type** | Automated (Unit) |
++| **Steps** | POST `/api/tasks` with mocker → `mock.add_task.assert_called_once_with(...)` |
++| **Expected** | Assertion passes — confirms route delegates to service with the request's arguments |
++
++> The lab's `test_routes_with_mock.py` has seven RF012 tests (TC-RF012-001 through 007). The two above are representative; the IDs match the test docstrings.
++
++---
++
++## RF013 — CLI Retirement
++
++### TC-RF013-001: Full Test Suite Passes After CLI Removal
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF013-001 |
++| **Type** | Automated (Regression) |
++| **Steps** | `uv run python -m pytest -v` after CLI retirement PR merged |
++| **Expected** | All tests pass — CLI removal has no effect on test suite |
++
++### TC-RF013-002: cli/ Directory No Longer Exists
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-RF013-002 |
++| **Type** | Manual (Verification) |
++| **Steps** | After the CLI retirement PR merges, `ls cli` on `main` (or browse the repo on GitHub) |
++| **Expected** | `cli/` does not exist; no remaining imports or references to `cli` in the codebase |
++
++---
++
++## SQA — CI Pipeline Tune-Up
++
++### TC-SQA-002: CI Runs on the PR, Not on Merge
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-SQA-002 |
++| **Type** | Manual (CI verification) |
++| **Steps** | Merge the `ci/pipeline-tune-up` PR → Actions tab → filter **Python application** |
++| **Expected** | The PR run is the newest run; no "Merge pull request" run appears after it |
++
++### TC-SQA-003: One Job Runs All Checks in Order
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-SQA-003 |
++| **Type** | Manual (CI verification) |
++| **Steps** | Open the PR's **Lint, type-check, test** check → expand steps |
++| **Expected** | Lint (ruff), Type check (mypy), Flask start/wait, Test (pytest), Stop Flask server steps all green in one job |
++
++### TC-SQA-004: Docs/Image-Only PR Skips CI
++| Field | Detail |
++|-------|--------|
++| **ID** | TC-SQA-004 |
++| **Type** | Manual (CI verification) |
++| **Steps** | Open a PR that changes only files in `docs/` or `images/` (e.g. this assignment's docs PR) |
++| **Expected** | No Python application check runs on the PR |
+diff --git a/docs/checkpoints/s4_1/test_plan.md b/docs/checkpoints/s4_1/test_plan.md
+new file mode 100644
+index 0000000..a5f56fc
+--- /dev/null
++++ b/docs/checkpoints/s4_1/test_plan.md
+@@ -0,0 +1,198 @@
++# Test Plan — Current Sprint: Sprint 4
++
++> **Living document.** Updated each sprint. See `docs/checkpoints/` for snapshots.  
++> **Last updated:** S4_1
++
++---
++
++## Purpose
++
++This document outlines the testing strategy for the TaskTracker project, currently covering Sprint 1 user stories US000–US004.
++
++## Test Objectives
++
++| ID | Objective | Success Metric |
++|----|-----------|----------------|
++| OBJ-1 | Validate environment and app factory (US000) | All sanity tests pass; Flask app initializes |
++| OBJ-2 | Validate health check endpoint (US001) | `GET /api/health` returns 200 + `{"status": "ok"}` |
++| OBJ-3 | Verify task creation with validation (US002) | `POST /api/tasks` returns 201 for valid; 400 for invalid |
++| OBJ-4 | Verify task retrieval (US003) | `GET /api/tasks` returns 200 + JSON array |
++| OBJ-5 | Validate CLI interface (US004) | Add/view/menu via terminal with correct output |
++| OBJ-6 | Regression safety via CI | All tests pass in GitHub Actions on every push and PR |
++| OBJ-7 | Verify task creation with input validation (US002) | `POST /api/tasks` returns 201 for valid; 400 for invalid; error messages are clear |
++| OBJ-8 | Verify task retrieval for all states (US003) | `GET /api/tasks` returns 200 + JSON array; handles empty state and invalid methods |
++| OBJ-9 | Verify RF001: Routes accessible via Blueprints | All endpoints work through registered blueprints |
++| OBJ-10 | Verify RF002: JSON file persistence | Tasks persist to `data/tasks.json` |
++| OBJ-11 | Verify US005: Mark task complete | `PUT /api/tasks/<id>` updates `completed` status |
++| OBJ-12 | Verify US007: Delete task | `DELETE /api/tasks/<id>` removes task |
++| OBJ-13 | Verify US011: Task persistence | All CRUD operations save to JSON file |
++| OBJ-14 | Verify US015: Error handling | All errors return consistent JSON format |
++| OBJ-15 | Regression testing | All Sprint 1 features still work |
++| OBJ-16 | Verify Task class attributes and behavior (RF004) | `Task` instantiates correctly; `mark_complete()` works |
++| OBJ-17 | Verify TaskService CRUD methods (RF005) | All four methods return correct results |
++| OBJ-18 | Verify TaskStorage wrapper (RF006A) | `load_tasks()` and `save_tasks()` work via wrapper |
++| OBJ-19 | Verify dependency injection (RF006B/C) | Routes use `current_app.task_service` |
++| OBJ-20 | Verify E2E API behavior via requests (RF008) | All CRUD endpoints return correct responses |
++| OBJ-21 | Verify MockTaskService isolation (RF008) | Unit tests run without file I/O |
++| OBJ-22 | Regression — all Sprint 2 endpoints still work | All existing tests pass after refactor |
++| OBJ-23 | SQA Tooling Review — mypy configuration verified and enforced | `uv run mypy app/` returns `Success: no issues found` |
++| OBJ-24 | Verify `ITaskRepository` ABC defines the correct interface | ABC importable; concrete classes satisfy all abstract methods |
++| OBJ-25 | Verify `FileTaskRepository` satisfies `ITaskRepository` contract | All contract tests pass |
++| OBJ-26 | Verify `pytest-mock` route tests equivalent to hand-rolled mock | Same assertions, mocker fixture used |
++| OBJ-27 | Verify CLI retirement does not break existing tests | Full test suite passes after `cli/` removed |
++| OBJ-28 | Regression — all Sprint 3 tests pass after refactor | All existing tests pass unchanged |
++| OBJ-28a | Verify CI pipeline runs the same checks once per PR | One run per PR, none on merge; lint → type-check → test steps all run; image/docs-only PRs skip CI |
++
++## Test Scope
++
++### In Scope
++* Flask app factory and environment (US000)
++* Health check API (US001)
++* Add task via API with validation (US002)
++* View tasks via API (US003)
++* CLI add/view/menu (US004)
++* Task creation via POST /api/tasks with validation (US002)
++* Task retrieval via GET /api/tasks for all states (US003)
++* Input validation: required fields, error handling
++* Edge cases: empty list, invalid HTTP methods
++* Mark task complete via PUT /api/tasks/<id> (US005)
++* Delete task via DELETE /api/tasks/<id> (US007)
++* JSON file persistence — all CRUD operations (US011)
++* Global error handling — 400 and 404 (US015)
++* Regression: all Sprint 1 endpoints unchanged
++* Task class unit tests — RF004
++* TaskService CRUD unit tests — RF005
++* TaskStorage wrapper unit tests — RF006A
++* Dependency injection integration tests — RF006B/C
++* E2E requests-based API tests — RF008
++* MockTaskService for isolated route tests — RF008
++* Regression: all Sprint 2 tests pass after refactor
++* `ITaskRepository` ABC — RF009
++* `FileTaskRepository` contract tests — RF010
++* pytest-mock route tests — RF012
++* CLI retirement verification — RF013
++* CI pipeline tune-up verification — [SQA] (RISK-CI-01)
++* Regression: all Sprint 3 tests pass unchanged
++
++### Out of Scope
++* Persistent storage (Sprint 2+)
++* Authentication / authorization
++* Performance testing
++* UI testing (Sprint 4+)
++
++## CI Test Execution Strategy
++
++- **When CI runs:** on every pull request to `main`; not on merge (the PR run already tested the merge result)
++- **What runs, in order:** ruff → mypy → Flask server → pytest with coverage → Stop Flask server — a failed step skips the rest; the stop step always runs (`if: always()`, carried over from S3_2)
++- **What does not trigger CI:** changes to only `**.md`, `docs/**`, or `images/**`
++- **Exit criterion:** all CI steps green on the PR before merge
++- **Constraint:** shared GitHub Actions minutes budget — see RISK-CI-01
++
++## Test Types and Tools
++
++| Type | Tool | When Used |
++|------|------|-----------|
++| Automated (Unit/API) | pytest | Every branch; required for CI |
++| Code Coverage | pytest-cov | Every CI run |
++| CI Validation | GitHub Actions | Every pull request to `main` (not on merge — see CI Test Execution Strategy) |
++| Manual | curl / Postman / CLI | Validating endpoints manually |
++
++## SQA Tools
++
++| Tool | Command | Scope |
++|------|---------|-------|
++| pytest | `uv run pytest -v` | All tests |
++| coverage | `uv run pytest --cov=app` | Production code |
++| ruff | `uv run ruff check .` | Full codebase |
++| bandit | `uv run bandit -r app/` | Production code |
++| pre-commit | `uv run pre-commit run --all-files` | Planned — activated in S5_2 (RF017) with ruff, bandit, and mypy hooks |
++| mypy | `uv run mypy app/` | `disallow_untyped_defs = true`; `exclude = ["tests/", "setup_browsers.py"]` in `[tool.mypy]`; production code only |
++| pytest-mock | `mocker.MagicMock()` | Replaces hand-rolled `MockTaskService` from Sprint 3 |
++| GitHub Actions | `python-app.yml` | One job on each PR: ruff → mypy → pytest. Tuned in S4_1 — no run on merge; image/docs-only PRs skip CI |
++
++## Pass/Fail Criteria
++
++* All automated tests pass locally and in CI
++* Code coverage ≥ 80% for `app/` module
++* Manual tests produce expected output
++* All automated tests for US002 and US003 pass locally and in CI
++* Input validation tests verify 400 responses for invalid data
++* All test cases documented with clear acceptance criteria
++
++---
++
++## RF003 — Test Organization Strategy (S2_2 Delta)
++
++### conftest.py Shared Fixtures
++Located at `tests/conftest.py`. Provides fixtures to ALL test files automatically:
++- `client` — creates Flask test client with `TESTING=True`
++- `reset_tasks` — clears `tasks.json` before/after each test (`autouse=True`)
++- Reset strategy: File-only reset (`save_tasks([])`) — no API route needed for Sprint 2
++
++> **Note:** When database is introduced (Sprint 4+), `reset_tasks` will need `POST /api/tasks/reset` route instead. Comment planted in `conftest.py` to flag this.
++
++### test_tasks.py Deprecation
++Original `tests/test_tasks.py` split into focused files:
++- `tests/tasks/test_add_task.py` — TC-US002 cases
++- `tests/tasks/test_get_tasks.py` — TC-US003 cases
++
++File deleted after split to prevent duplicate test execution.
++
++## Risks
++
++### RISK-CI-01 — CI Minutes Budget Exhaustion
++
++- **Identified:** S3_1 — the GitHub Actions usage report at the end of S2_2 showed the class's shared 3,000-minute pool fully used
++- **Impact:** High — when the pool runs out, CI stops for every student until the monthly reset, so no PR can be verified
++- **Likelihood:** High — Sprint 4 and 5 labs add more PRs and heavier workflows (Playwright, Robot Framework)
++- **Root cause:** Pipeline design, not usage — 3 jobs × 2 triggers (PR + merge) ≈ 6 billed minutes per PR
++- **Planned mitigation:** Sprint 4 (S4_1) — run CI on pull requests only, in one job; skip image-only changes
++- **Monitoring:** Organization usage report reviewed monthly
++- **Status:** Mitigated in S4_1 — [SQA] CI Pipeline Tune-Up (PR-only, single job, images ignored). Continue monthly monitoring.
++
++---
++
++## SQA Tooling Review — S3_2 Delta
++
++### What Changed and Why
++
++The `type-check` CI job running `uv run mypy .` was already present in `python-app.yml` from Sprint 2. The SQA tooling review in S3_2 revealed it wasn't properly configured — no `[tool.mypy]` section existed in `pyproject.toml`. mypy was running with defaults, silently passing even unannotated code.
++
++**Actions taken:**
++1. Added `[tool.mypy]` to `pyproject.toml` with `ignore_missing_imports = true`
++2. Annotated `Task` class with full PEP 484 type hints
++3. Tightened to `disallow_untyped_defs = true` — 20 errors found across 5 files
++4. Fixed all 20 errors; mypy clean on `app/`
++5. Added `exclude = ["tests/", "setup_browsers.py"]` — production code only
++
++No CI command change was needed — `pyproject.toml` is the control. SQA manages scope through configuration, not CI commands.
++
++### Boundary Decision
++
++mypy is scoped to `app/` only via `exclude` in `pyproject.toml`. Test files use pytest fixtures and dynamic patterns that mypy flags — not because they are bugs, but because pytest's dynamic patterns are a known mypy limitation. Enforcing types on production code while leaving test implementation flexible is the majority professional practice.
++
++**Impact:** All future PRs must pass `uv run mypy app/` in CI. Unannotated functions in `app/` will block merges.
++
++---
++
++## CI Pipeline Finding — S3_2 Delta
++
++### What Was Found
++
++When the `test` job was extended to start a Flask server for E2E tests, SQA/DevOps found that CI could fail **even when every test passed**. The failing step was **Post Install uv** (setup-uv's cache cleanup), which timed out after exactly 5 minutes with exit code 2.
++
++**Root cause:** The Flask server was started with `uv run` and never stopped, so the running process held uv's cache and the cleanup could not finish (missing **teardown**). The workflow does not pin a uv version, so a newer uv release (0.13.0) changed cleanup behavior and exposed the problem (**environment drift**).
++
++### Actions Taken
++
++| Action | When | Status |
++|--------|------|--------|
++| Added `Stop Flask server` step with `if: always()` to the `test` job | S3_2 | ✅ Done — immediate fix |
++| Logged issue `CI: pin uv version in GitHub Actions workflows` (#N) | S3_2 | 🔓 Open |
++| Pin uv version on every `setup-uv` step | S4_3 | ⏳ Planned — permanent fix |
++
++### Risk
++
++| Risk | Likelihood | Impact | Mitigation |
++|------|-----------|--------|------------|
++| Unpinned CI tools (uv) change behavior between runs and break CI with no code change | Medium | High — all PRs blocked | Teardown step added (S3_2); version pinning planned (S4_3, issue #N) |

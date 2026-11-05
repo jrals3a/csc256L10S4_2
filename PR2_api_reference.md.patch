@@ -1,0 +1,80 @@
+diff --git a/docs/living/api_reference.md b/docs/living/api_reference.md
+index 2571aa9..b4be153 100644
+--- a/docs/living/api_reference.md
++++ b/docs/living/api_reference.md
+@@ -1,19 +1,10 @@
+ # API Reference — Current Sprint: Sprint 4
+ 
+ > **Living document.** Updated each sprint when endpoints change.  
+-> **Last updated:** S4_1  
++> **Last updated:** S4_2  
+ > **Environment:** Local (`http://127.0.0.1:5000`)  
+ > **Authentication:** Not required
+ 
+-> **Sprint 4_1 Note:** No new API endpoints in S4_1. All changes are internal
+-> (repository pattern, pytest-mock, CLI retirement). New endpoints added in S4_2
+-> when Web UI routes are introduced.
+-```
+-
+-> **Sprint 3 Note:** No new endpoints added in Sprint 3. All endpoint behaviors
+-> preserved from Sprint 2. Internal implementation now routes through
+-> `TaskService` via `current_app.task_service` (dependency injection).
+-
+ ---
+ 
+ ## GET /api/health
+@@ -140,26 +131,16 @@ curl -X DELETE http://127.0.0.1:5000/api/tasks/1
+ 
+ ## Error Handling (US015)
+ 
+-**Two-level error handling:**
+-
+-**Global handlers** (`app/__init__.py`) return:
+-```json
+-{ "error": "Bad Request" }
+-{ "error": "Not Found" }
+-```
+-
+-**Route-level validation** (`routes/tasks.py`) returns specific messages:
++All errors return consistent JSON:
+ ```json
+-{ "error": "Title is required" }
++{ "error": "Error Type" }
+ ```
+ 
+-| Code | Meaning | When |
+-|------|---------|------|
+-| 400 | Bad Request | Missing/empty title, malformed JSON |
+-| 404 | Not Found | Task ID does not exist |
+-| 405 | Method Not Allowed | Wrong HTTP method |
+-
+-> **Implementation note:** Sprint plan specified a unified `{"error": "...", "message": "..."}` format. Implemented as two levels: global handlers return type only; route logic returns specific validation messages.
++| Code | When |
++|------|------|
++| 400 | Missing/empty title, invalid JSON |
++| 404 | Task ID doesn't exist |
++| 405 | Wrong HTTP method |
+ 
+ ---
+ 
+@@ -179,3 +160,20 @@ curl -X DELETE http://127.0.0.1:5000/api/tasks/1
+ > The route calls `TaskService.clear_tasks()`, which delegates to whichever
+ > `ITaskRepository` is injected, so it works unchanged when the database backend
+ > arrives in S4_2.
++
++---
++
++## Web UI Routes
++
++These routes serve HTML pages via Flask templates. They use the same `TaskService` as the REST API but render HTML instead of JSON.
++
++| Method | Route | Description |
++|--------|-------|-------------|
++| GET | `/` | Redirects to `/tasks/new` |
++| GET | `/tasks/new` | Display add task form |
++| POST | `/tasks/new` | Submit add task form |
++| GET | `/tasks` | Display task list |
++| POST | `/tasks/<id>/complete` | Mark task complete (form button) |
++| POST | `/tasks/<id>/delete` | Delete task (form button) |
++
++> The REST API endpoints (`/api/tasks`, `/api/tasks/<id>`, etc.) are unchanged. The UI routes are a separate Blueprint (`ui_bp`) registered in `create_app()`.

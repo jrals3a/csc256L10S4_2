@@ -1,0 +1,101 @@
+diff --git a/docs/living/user_journey.md b/docs/living/user_journey.md
+new file mode 100644
+index 0000000..90cd98b
+--- /dev/null
++++ b/docs/living/user_journey.md
+@@ -0,0 +1,95 @@
++# User Journey — Current Sprint: Sprint 4
++
++> **Living document.** Updated when UI changes. See `docs/checkpoints/` for snapshots.  
++> **Last updated:** S4_2
++
++---
++
++## Overview
++
++Sprint 4 introduces the web UI. Users can now manage tasks through a browser
++without Postman or curl.
++
++---
++
++## Journey 1: Add a New Task
++
++**User goal:** Create a task with a title and optional description.
++
++```mermaid
++journey
++    title Journey 1: Add a New Task
++    section Navigate
++        Open browser: 5: User
++        Redirect to /tasks/new: 3: System
++    section Fill Form
++        See Add Task form: 5: User
++        Enter title and description: 5: User
++    section Submit
++        Click Add Task button: 5: User
++        Server creates task: 3: System
++        Redirect to task list: 3: System
++    section Verify
++        See task in list: 5: User
++```
++
++| Step | User Action | System Response | HTTP |
++|------|-------------|-----------------|------|
++| 1 | Opens browser → navigates to app | Redirect to `/tasks/new` | 302 |
++| 2 | Sees Add Task form | `GET /tasks/new` → renders `add_task.html` | 200 |
++| 3 | Enters title (required) + description | HTML5 `required` prevents empty submission | — |
++| 4 | Clicks **Add Task** | `POST /tasks/new` → `TaskService.add_task()` → DB | 302 |
++| 5 | Sees task in list | `GET /tasks` → renders `task_list.html` | 200 |
++
++**Validation path (empty title):**
++- User submits empty title → server-side validation catches it → form re-renders with error message
++
++---
++
++## Journey 2: Complete a Task
++
++**User goal:** Mark an existing task as done.
++
++| Step | User Action | System Response | HTTP |
++|------|-------------|-----------------|------|
++| 1 | Views task list at `/tasks` | All tasks rendered | 200 |
++| 2 | Clicks **Complete** button | `POST /tasks/<id>/complete` | — |
++| 3 | `ui.py` calls `TaskService.complete_task(id)` | DB sets `completed = True` | — |
++| 4 | Redirected to task list | 302 → `GET /tasks` | 200 |
++| 5 | Task shows with strikethrough styling | CSS `.task-completed` applied | — |
++
++---
++
++## Journey 3: Delete a Task
++
++**User goal:** Remove a task permanently.
++
++| Step | User Action | System Response | HTTP |
++|------|-------------|-----------------|------|
++| 1 | Views task list at `/tasks` | All tasks rendered | 200 |
++| 2 | Clicks **Delete** button | `POST /tasks/<id>/delete` | — |
++| 3 | `ui.py` calls `TaskService.delete_task(id)` | DB removes row | — |
++| 4 | Redirected to task list | 302 → `GET /tasks` | 200 |
++| 5 | Task no longer appears | `get_all_tasks()` returns updated list | — |
++
++---
++
++## Technical Pattern: Post-Redirect-Get (PRG)
++
++All form submissions follow the Post-Redirect-Get pattern:
++1. **POST** — form submitted, action taken
++2. **Redirect** — 302 response
++3. **GET** — browser loads fresh page
++
++This prevents duplicate form submissions if the user refreshes after an action.
++
++---
++
++## Validation: Defense in Depth
++
++| Layer | Mechanism | Catches |
++|-------|-----------|---------|
++| Front-end | HTML5 `required` attribute | Empty title in browser |
++| Back-end (UI) | `ui.py` server-side check | Bypassed front-end validation |
++| Back-end (Service) | `TaskService.add_task()` ValueError | Invalid data from any source |
++| Database | `NOT NULL` constraint | Direct DB writes without service layer |
